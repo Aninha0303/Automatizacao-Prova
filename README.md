@@ -126,3 +126,7 @@ Projeto desenvolvido individualmente.
 
 Por se tratar de trabalho individual, todos os commits são da mesma conta. O fluxo de trabalho
 seguiu branch por funcionalidade → Pull Request → auto-revisão documentada → merge na `master`.
+
+## Video de apresentacao
+
+https://youtu.be/D6YPwx4ws3E
