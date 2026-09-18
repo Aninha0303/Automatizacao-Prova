@@ -70,7 +70,7 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
         const PageHeader(
           title: 'Correção',
           description:
-              'Aponte a câmera para o QR code da folha; a leitura identifica o aluno e a variação.',
+              'Leia o QR code da folha de resposta: o sistema identifica a variação, lê os quadradinhos marcados e calcula a nota.',
         ),
         Card(
           child: Column(children: [

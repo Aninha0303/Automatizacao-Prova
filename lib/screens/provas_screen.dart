@@ -17,7 +17,8 @@ class ProvasScreen extends StatelessWidget {
       children: [
         PageHeader(
           title: 'Provas',
-          description: 'Cada prova gera variações embaralhadas e folhas com QR code.',
+          description:
+              'Cada prova gera uma variação por aluno: mesmas questões, ordem de questões e alternativas embaralhada.',
           action: FilledButton.icon(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const NovaProvaScreen()),

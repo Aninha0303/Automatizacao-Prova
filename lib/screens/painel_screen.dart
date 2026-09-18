@@ -3,101 +3,143 @@ import 'package:flutter/material.dart';
 import '../mock_data.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'correcao_screen.dart';
+import 'provas_screen.dart';
 
 class PainelScreen extends StatelessWidget {
   const PainelScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final emAndamento = provas.where((p) => p.corrigidas < p.total).toList();
+    final emAndamento = provas.where((p) => p.status == 'Aplicada').toList();
+    final totalCorrigidas = provas.fold<int>(0, (s, p) => s + p.corrigidas);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const PageHeader(
-          title: 'Painel',
+          title: 'Bom trabalho, professor',
           description:
-              'Visão geral das provas, correções em andamento e últimas folhas lidas.',
+              'Semana de provas sob controle: gere, aplique e corrija sem levar pilha de papel para casa.',
         ),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NovaProvaScreen()),
+              ),
+              icon: const Icon(Icons.note_add_outlined, size: 18),
+              label: const Text('Nova prova'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CorrecaoScreen()),
+              ),
+              icon: const Icon(Icons.document_scanner_outlined, size: 18),
+              label: const Text('Corrigir agora'),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 16),
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.35,
           children: [
+            MetricCard(
+                label: 'Provas corrigidas',
+                value: '$totalCorrigidas',
+                hint: 'neste bimestre',
+                icon: Icons.check_circle_outline),
+            const MetricCard(
+                label: 'Aguardando correção',
+                value: '24',
+                hint: 'folhas pendentes',
+                icon: Icons.schedule_outlined),
             MetricCard(
                 label: 'Questões no banco',
                 value: '${questoes.length}',
-                icon: Icons.library_books_outlined),
-            MetricCard(
-                label: 'Provas criadas',
-                value: '${provas.length}',
-                icon: Icons.description_outlined),
-            MetricCard(
-                label: 'Folhas corrigidas',
-                value: '${provas.fold<int>(0, (s, p) => s + p.corrigidas)}',
-                icon: Icons.check_circle_outline),
-            MetricCard(
-                label: 'Alunos',
-                value: '${turmas.fold<int>(0, (s, t) => s + t.alunos)}',
-                icon: Icons.people_outline),
+                hint: 'reutilizáveis',
+                icon: Icons.trending_up),
+            const MetricCard(
+                label: 'Tempo médio',
+                value: '26 s',
+                hint: 'por folha lida',
+                icon: Icons.document_scanner_outlined),
           ],
         ),
         const SizedBox(height: 16),
         SectionCard(
-          title: 'Correções em andamento',
+          title: 'Correção em andamento',
           child: Column(
-            children: emAndamento.map((p) {
-              final pct = p.total == 0 ? 0.0 : p.corrigidas / p.total;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                            child: Text(p.titulo,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600))),
-                        Text('${p.corrigidas}/${p.total}',
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: pct,
-                        minHeight: 6,
-                        backgroundColor: AppColors.border,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(nomeTurma(p.turmaId),
+            children: emAndamento.isEmpty
+                ? [
+                    Text('Nenhuma correção em andamento.',
                         style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-              );
-            }).toList(),
+                  ]
+                : emAndamento.map((p) {
+                    final pct = p.total == 0 ? 0.0 : p.corrigidas / p.total;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(p.titulo,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600)),
+                                    Text(nomeTurma(p.turmaId),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall),
+                                  ],
+                                ),
+                              ),
+                              Text('${p.corrigidas}/${p.total}',
+                                  style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              minHeight: 6,
+                              backgroundColor: AppColors.border,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
           ),
         ),
         const SizedBox(height: 16),
         SectionCard(
           title: 'Últimas folhas lidas',
           child: Column(
-            children: correcoes.map((c) {
+            children: correcoes.take(5).map((c) {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 title: Text(nomeAluno(c.alunoId)),
                 subtitle: Text('${c.variacao} · ${c.lidaEm}'),
                 trailing: StatusBadge(
-                  '${c.acertos}/${c.total} · ${c.nota.toStringAsFixed(1)}',
-                  color: c.nota >= 6 ? AppColors.success : AppColors.danger,
+                  c.nota.toStringAsFixed(1),
+                  color: c.nota >= 6 ? AppColors.primary : AppColors.danger,
                 ),
               );
             }).toList(),
