@@ -1,14 +1,18 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../mock_data.dart';
+import '../services/firestore_service.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
 /// Fluxo de correção pela câmera.
 /// No Android/iOS usa a câmera real (mobile_scanner) para ler o QR da folha.
 /// Na web/desktop mostra um placeholder com leitura simulada.
+/// Cada folha lida é gravada na coleção "correcoes" do Firestore.
 class CorrecaoScreen extends StatefulWidget {
   const CorrecaoScreen({super.key});
   @override
@@ -18,48 +22,84 @@ class CorrecaoScreen extends StatefulWidget {
 class _CorrecaoScreenState extends State<CorrecaoScreen> {
   bool _lendo = false;
   String? _ultimoCodigo;
+  List<Aluno> _alunos = [];
+  final _rnd = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    FirestoreService.instance.alunosStream().first.then((lista) {
+      if (mounted) setState(() => _alunos = lista);
+    });
+  }
 
   bool get _cameraDisponivel =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
-  void _registrarLeitura(String codigo) {
+  /// Monta uma correção de exemplo para o aluno (leitura dos quadradinhos
+  /// ainda é simulada; o QR e a gravação no banco são reais).
+  Correcao _gerarCorrecao(Aluno aluno, String provaId, String variacao) {
+    const total = 20;
+    final acertos = 8 + _rnd.nextInt(13); // 8..20
+    final respostas = List.generate(5, (i) {
+      final correta = 'ABCD'[_rnd.nextInt(4)];
+      final acertou = _rnd.nextBool();
+      return Resposta(
+          i + 1, acertou ? correta : 'ABCD'[_rnd.nextInt(4)], correta);
+    });
+    return Correcao(
+      id: '',
+      alunoId: aluno.id,
+      provaId: provaId,
+      variacao: variacao,
+      acertos: acertos,
+      total: total,
+      nota: acertos / total * 10,
+      lidaEm: 'agora',
+      respostas: respostas,
+    );
+  }
+
+  Future<void> _registrarLeitura(String codigo) async {
     if (codigo == _ultimoCodigo) return;
     _ultimoCodigo = codigo;
     // QR no formato provaId|variacao|matricula
     final partes = codigo.split('|');
     final matricula = partes.length > 2 ? partes[2] : '';
-    final aluno = alunos.where((a) => a.matricula == matricula).toList();
-    final base = correcoes[_lidas.length % correcoes.length];
-    final c = aluno.isEmpty
-        ? base
-        : Correcao(
-            id: codigo,
-            alunoId: aluno.first.id,
-            provaId: partes[0],
-            variacao: partes.length > 1 ? partes[1] : base.variacao,
-            acertos: base.acertos,
-            total: base.total,
-            nota: base.nota,
-            lidaEm: 'agora',
-            respostas: base.respostas,
-          );
-    setState(() => _lidas.insert(0, c));
-    toast(context, 'Folha de ${nomeAluno(c.alunoId)} corrigida.');
+    final encontrados =
+        _alunos.where((a) => a.matricula == matricula).toList();
+    if (encontrados.isEmpty) {
+      toast(context, 'Aluno não encontrado para este QR.');
+      return;
+    }
+    final aluno = encontrados.first;
+    final c = _gerarCorrecao(
+        aluno, partes[0], partes.length > 1 ? partes[1] : 'V-01');
+    await FirestoreService.instance.addCorrecao(c, aluno.nome);
+    if (mounted) toast(context, 'Folha de ${aluno.nome} corrigida e salva.');
   }
-  final List<Correcao> _lidas = [];
 
   Future<void> _simularLeitura() async {
+    if (_alunos.isEmpty) {
+      toast(context, 'Nenhum aluno cadastrado para simular.');
+      return;
+    }
     setState(() => _lendo = true);
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
-    final proxima = correcoes[_lidas.length % correcoes.length];
-    setState(() {
-      _lendo = false;
-      _lidas.insert(0, proxima);
-    });
-    toast(context, 'Folha de ${nomeAluno(proxima.alunoId)} corrigida.');
+    final aluno = _alunos[_rnd.nextInt(_alunos.length)];
+    final c = _gerarCorrecao(
+        aluno, 'p1', 'V-${(1 + _rnd.nextInt(30)).toString().padLeft(2, '0')}');
+    await FirestoreService.instance.addCorrecao(c, aluno.nome);
+    setState(() => _lendo = false);
+    if (mounted) toast(context, 'Folha de ${aluno.nome} corrigida e salva.');
+  }
+
+  Future<void> _excluir(Correcao c) async {
+    await FirestoreService.instance.deleteCorrecao(c.id);
+    if (mounted) toast(context, 'Correção excluída.');
   }
 
   @override
@@ -70,7 +110,7 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
         const PageHeader(
           title: 'Correção',
           description:
-              'Leia o QR code da folha de resposta: o sistema identifica a variação, lê os quadradinhos marcados e calcula a nota.',
+              'Leia o QR code da folha de resposta: o sistema identifica a variação, lê os quadradinhos marcados, calcula a nota e grava no Firebase.',
         ),
         Card(
           child: Column(children: [
@@ -103,7 +143,8 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
                                     Text(
                                       'Câmera disponível no celular.\nAqui a leitura roda em modo simulado.',
                                       textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.white70),
+                                      style:
+                                          TextStyle(color: Colors.white70),
                                     ),
                                   ],
                                 ),
@@ -125,48 +166,77 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
           ]),
         ),
         const SizedBox(height: 16),
-        SectionCard(
-          title: 'Folhas corrigidas nesta sessão',
-          child: _lidas.isEmpty
-              ? Text('Nenhuma folha lida ainda.',
-                  style: Theme.of(context).textTheme.bodySmall)
-              : Column(
-                  children: _lidas
-                      .map((c) => ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            title: Text(nomeAluno(c.alunoId)),
-                            subtitle: Text(
-                                '${c.variacao} · ${c.acertos}/${c.total} acertos'),
-                            trailing: StatusBadge(
-                              c.nota.toStringAsFixed(1),
-                              color: c.nota >= 6
-                                  ? AppColors.success
-                                  : AppColors.danger,
-                            ),
-                            children: c.respostas
-                                .map((r) => ListTile(
-                                      dense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: Icon(
-                                        r.acertou
-                                            ? Icons.check_circle
-                                            : Icons.cancel,
-                                        color: r.acertou
-                                            ? AppColors.success
-                                            : AppColors.danger,
-                                        size: 18,
+        StreamBuilder<List<Correcao>>(
+          stream: FirestoreService.instance.correcoesStream(),
+          builder: (context, snap) {
+            final lista = snap.data ?? [];
+            return StreamBuilder<Map<String, String>>(
+              stream: FirestoreService.instance.nomesAlunosStream(),
+              builder: (context, snapNomes) {
+                final nomes = snapNomes.data ?? {};
+                return SectionCard(
+                  title: 'Folhas corrigidas (Firebase)',
+                  child: lista.isEmpty
+                      ? Text(
+                          snap.connectionState == ConnectionState.waiting
+                              ? 'Carregando…'
+                              : 'Nenhuma folha lida ainda.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        )
+                      : Column(
+                          children: lista
+                              .map((c) => ExpansionTile(
+                                    tilePadding: EdgeInsets.zero,
+                                    title: Text(
+                                        nomes[c.alunoId] ?? c.alunoId),
+                                    subtitle: Text(
+                                        '${c.variacao} · ${c.acertos}/${c.total} acertos'),
+                                    trailing: StatusBadge(
+                                      c.nota.toStringAsFixed(1),
+                                      color: c.nota >= 6
+                                          ? AppColors.success
+                                          : AppColors.danger,
+                                    ),
+                                    children: [
+                                      ...c.respostas.map((r) => ListTile(
+                                            dense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              r.acertou
+                                                  ? Icons.check_circle
+                                                  : Icons.cancel,
+                                              color: r.acertou
+                                                  ? AppColors.success
+                                                  : AppColors.danger,
+                                              size: 18,
+                                            ),
+                                            title:
+                                                Text('Questão ${r.questao}'),
+                                            trailing: Text(
+                                                'marcou ${r.marcada} · correta ${r.correta}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall),
+                                          )),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () => _excluir(c),
+                                          icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 16),
+                                          label:
+                                              const Text('Excluir correção'),
+                                        ),
                                       ),
-                                      title: Text('Questão ${r.questao}'),
-                                      trailing: Text(
-                                          'marcou ${r.marcada} · correta ${r.correta}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall),
-                                    ))
-                                .toList(),
-                          ))
-                      .toList(),
-                ),
+                                    ],
+                                  ))
+                              .toList(),
+                        ),
+                );
+              },
+            );
+          },
         ),
       ],
     );

@@ -1,4 +1,8 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+
+import 'firebase_options.dart';
+import 'services/firestore_service.dart';
 
 import 'screens/painel_screen.dart';
 import 'screens/questoes_screen.dart';
@@ -8,7 +12,14 @@ import 'screens/resultados_screen.dart';
 import 'screens/alunos_screen.dart';
 import 'theme.dart';
 
-void main() => runApp(const CorrigeApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await FirestoreService.instance.seedSeVazio();
+  runApp(const CorrigeApp());
+}
 
 class CorrigeApp extends StatelessWidget {
   const CorrigeApp({super.key});

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "37392172848",
+    "project_id": "corrigemais-e2d79",
+    "storage_bucket": "corrigemais-e2d79.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:37392172848:android:2047a135774867f2002af5",
+        "android_client_info": {
+          "package_name": "com.example.corrige_mais"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4NCcwj6kze8UgYoRtoDZ16xxcGOJOBHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
