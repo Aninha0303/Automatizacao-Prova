@@ -2,7 +2,7 @@
 
 Aplicativo em Flutter/Dart para auxiliar professores na organização e correção de provas objetivas.
 
-**README v2 — N2 | Grupo 14 | Ana Vicini | 30/10/2026**
+**README v3 — N3 | Grupo 14 | Ana Vicini | 26/11/2026**
 
 ## Autoria
 
@@ -12,70 +12,86 @@ Repositório: https://github.com/Aninha0303/Automatizacao-Prova
 ## Sumário
 
 1. Visão geral e evolução
-2. Escopo e requisitos
-3. Telas e evidências
-4. Dados e tecnologias
-5. Estrutura e execução
-6. Backlog real da N2
-7. Vídeo e documentação
+2. Requisitos da N3
+3. Como rodar e configurar
+4. Fluxo de demonstração
+5. Telas e evidências
+6. Dados, tecnologias e segurança
+7. Estrutura do projeto
+8. Backlog da N3
+9. Limites e verificações pendentes
+10. Vídeo e documentação
 
 ## 1. Visão geral e evolução
 
-O projeto nasceu da necessidade de reduzir o tempo gasto na correção manual de provas objetivas. O fluxo previsto envolve banco de questões, montagem de provas, folhas com QR code, correção e consulta das notas.
+O projeto nasceu da necessidade de reduzir o tempo gasto na correção manual de provas objetivas. O fluxo envolve cadastro do professor, turmas e alunos, banco de questões, montagem de prova com variações embaralhadas, folhas com QR code, correção a partir do QR e relatório de notas.
 
-Na **N1**, foram entregues telas navegáveis e dados fictícios em memória, além do APK, README v1, vídeo e diário individual. Na **N2**, Alunos, Questões, Provas, Correção e Resultados passaram a usar o Firebase Firestore para leitura e gravação. O CRUD de Alunos e Questões foi testado com criação, edição e exclusão conferidas no banco.
+- **N1:** telas navegáveis com dados fictícios em memória, primeiro APK, README v1, vídeo e diário individual.
+- **N2:** Alunos, Questões, Provas, Correção e Resultados passaram a ler e gravar no Firebase Firestore. O CRUD de Alunos e Questões foi testado com criação, edição e exclusão conferidas no banco.
+- **N3:** entrada com cadastro e login de professor, turmas e alunos cadastrados pelo próprio professor, banco de questões próprio, prova com embaralhamento de questões e alternativas gravado junto do gabarito, PDF com QR em página separada, correção aberta pelo QR com nota calculada do gabarito salvo, e relatório por prova. Os dados de exemplo (`lib/mock_data.dart`) foram removidos.
 
-**Limite atual:** integração real ao banco não significa correção óptica real. As respostas ainda são simuladas. O Painel e a lista de alunos das Folhas ainda usam dados locais; a inicialização também insere exemplos se as coleções estiverem vazias. Portanto, esta versão não atende integralmente à exigência de eliminar todos os mocks da N2. Não houve verificação independente do APK Android final.
+Nada é preenchido automaticamente: se o professor não cadastrar, a tela fica vazia.
 
-## 2. Escopo e requisitos
+## 2. Requisitos da N3
 
-### Escopo da N1 preservado
-
-Telas de Painel, Questões, Provas/Nova prova, Folhas com QR, Correção, Resultados e Alunos; questões com alternativas A–D, gabarito e filtros; demonstração de variações de prova e resultados. As funcionalidades planejadas permanecem abaixo com seu estado atual, sem apresentar simulação como implementação completa.
-
-### Requisitos funcionais
-
-| Código | Requisito | Estado na N2 |
+| # | Requisito | Estado |
 |---|---|---|
-| RF01 | Painel com resumo de provas e correções. | Navegável; indicadores locais, não sincronizados. |
-| RF02 | Listar questões com disciplina, assunto e gabarito. | Firestore; comprovado. |
-| RF03 | Buscar e filtrar questões. | Disponível na tela. |
-| RF04 | Criar prova com questões do banco. | Cadastro de prova implementado; montagem completa por questões/variações não comprovada. |
-| RF05 | Escolher modo de geração. | Modo registrado na prova; geração completa não comprovada. |
-| RF06 | Gerar uma variação por aluno. | Folhas demonstrativas; não há persistência independente comprovada. |
-| RF07 | Mostrar folha com nome, matrícula e grade A–D. | Implementado com alunos locais. |
-| RF08 | QR identificando prova, variação e matrícula. | QR real no formato provaId|variacao|matricula. |
-| RF09 | Ler QR pela câmera. | Caminho de scanner móvel implementado; teste Android final não comprovado. |
-| RF10 | Corrigir marcações reais pelo gabarito. | Pendente; respostas geradas por simulação. |
-| RF11 | Listar e registrar correções. | Firestore; registros de exemplo comprovados. |
-| RF12 | Mostrar notas e exportar resultados. | Firestore; exportação CSV copiada, não arquivo .xlsx nativo. |
-| RF13 | Distribuição de alternativas por questão. | Calculada dos registros persistidos, incluindo simulados; sem isolamento por prova na versão analisada. |
-| RF14 | Listar alunos e turmas. | Alunos no Firestore; turmas locais. |
-| RF15 | Cadastrar, editar e excluir alunos. | CRUD validado com prints. |
-| RF16 | Cadastrar, editar e excluir questões. | CRUD validado com prints. |
-| RF17 | Salvar prova, alterar situação e excluir. | Implementado; leitura comprovada, demais ações sem evidência completa. |
-| RF18 | Excluir correção. | Implementado; sem evidência de teste. |
+| 1 | Cadastro de professor | Implementado: `lib/screens/cadastro_screen.dart`, cria a conta e o perfil em `professores`. |
+| 2 | Login de professor | Implementado: `lib/screens/login_screen.dart`; sem login nenhuma tela do app abre. |
+| 3 | Cadastrar turma e disciplina | Implementado: `lib/screens/turmas_screen.dart` com CRUD em `turmas`. |
+| 4 | Cadastrar alunos na turma | Implementado: `lib/screens/alunos_screen.dart` com CRUD em `alunos`. |
+| 5 | Banco de questões do professor | Implementado: `lib/screens/questoes_screen.dart` com CRUD em `questoes`. |
+| 6 | Prova com embaralhamento | Implementado: `lib/screens/provas_screen.dart` embaralha questões e alternativas e salva cada variação com seu gabarito. |
+| 7 | Listar, visualizar e editar | Implementado: provas em `provas_screen.dart` e `prova_detalhe_screen.dart`; turmas, alunos e questões com edição e exclusão. |
+| 8 | PDF com QR em página separada | Implementado: `lib/services/pdf_service.dart` gera a prova e uma página de folha por aluno com QR `provaId\|variação\|matrícula`. |
+| 9 | Correção pelo QR com nota salva | Implementado: `lib/screens/correcao_screen.dart` abre a variação do aluno, o professor marca as respostas e a nota é calculada contra o gabarito salvo. |
+| 10 | Status da prova e relatório | Implementado: status `Pronta`, `Aplicada`, `Corrigida` e relatório por prova em `lib/screens/resultados_screen.dart`. |
 
-### Requisitos não funcionais
+## 3. Como rodar e configurar
 
-| Código | Requisito | Estado |
-|---|---|---|
-| RNF01 | Flutter/Dart e Material 3. | Tecnologias do projeto. |
-| RNF02 | Android e Web. | Web usado nos testes; APK final informado pela autora. Windows/iOS não validados na N2. |
-| RNF03 | Interface adaptável. | Layout herdado da N1; não houve bateria formal de tamanhos nesta entrega. |
-| RNF04 | Português do Brasil. | Mantido. |
-| RNF05 | Dados persistidos em nuvem. | Quatro coleções no Firestore; ainda existem fontes locais. |
-| RNF06 | Acesso às telas pelo painel/navegação. | Navegação mantida. |
-| RNF07 | QR reconhecido em até 2 segundos. | Meta original; tempo não medido. |
-| RNF08 | Separar tema, telas, dados e serviços. | Organização mantida e serviço Firestore adicionado. |
-| RNF09 | Bibliotecas abertas para fonte, QR e scanner. | google_fonts, qr_flutter e mobile_scanner. |
-| RNF10 | Não expor credenciais privadas. | Não incluir contas de serviço ou senhas. Regras de teste do Firestore precisam ser revisadas antes de uso real. |
+### Pré-requisitos
 
-### Fora da versão atual
+Flutter com Dart `>=3.4.0 <4.0.0`, Android SDK para APK, Chrome para Web e acesso ao projeto Firebase `corrigemais-e2d79`.
 
-Login, importação de alunos por planilha, leitura óptica das marcações, PDF das provas, geração direta de .xlsx, integração acadêmica e provas discursivas. Também falta sincronizar Painel/Folhas e comprovar todas as operações de Provas/Correção no APK.
+```powershell
+git clone https://github.com/Aninha0303/Automatizacao-Prova.git
+cd Automatizacao-Prova
+flutter pub get
+flutter run -d chrome
+```
 
-## 3. Telas e evidências
+### Antes de usar: duas configurações no Firebase Console
+
+1. **Ativar cadastro por e-mail e senha** — Console do Firebase → *Build → Authentication → Sign-in method* → ativar **E-mail/Senha**. Sem isso, o cadastro e o login não funcionam.
+2. **Aplicar as regras do banco** — Console do Firebase → *Firestore Database → Rules*, colar o conteúdo de [`firestore.rules`](firestore.rules) e clicar em **Publish**. As regras fazem cada professor ver apenas os próprios registros.
+
+O arquivo `firestore.rules` está no repositório. Enquanto ele não for publicado, o banco continua nas regras de teste e qualquer pessoa logada consegue ler as coleções.
+
+### Gerar o APK
+
+```powershell
+flutter clean
+flutter pub get
+flutter build apk --release
+```
+
+O APK sai em `build/app/outputs/flutter-apk/app-release.apk`. Copiá-lo como `corrige_mais.apk` para a raiz do pacote de entrega, excluindo `build/`, `.dart_tool/` e `.git/`.
+
+## 4. Fluxo de demonstração
+
+1. **Cadastrar** — criar a conta do professor (nome, e-mail, senha).
+2. **Turma** — cadastrar turma com curso, disciplina e período.
+3. **Alunos** — cadastrar alunos com nome e matrícula, ligados à turma.
+4. **Questões** — cadastrar questões com enunciado, alternativas A–D, gabarito, disciplina, assunto e dificuldade.
+5. **Prova** — Nova prova: escolher turma, quantidade, modo de geração e as questões. O app embaralha a ordem das questões e das alternativas e salva o gabarito de cada variação.
+6. **Folhas** — abrir a prova, ver as folhas com QR próprio e gerar o PDF (uma página de prova + uma página de folha por aluno).
+7. **Correção** — ler o QR da folha com a câmera (ou colar o conteúdo). O app abre a variação daquele aluno; o professor marca o que foi respondido e salva. A nota sai do gabarito: `acertos ÷ total × 10`.
+8. **Resultados** — escolher a prova e ver média, aprovados, notas por aluno e análise por questão; exportar as notas para o Excel.
+9. **Status** — finalizar a correção muda a prova para `Corrigida`.
+
+## 5. Telas e evidências
+
+As imagens abaixo são da N2 e continuam válidas para o CRUD de Alunos e Questões no Firestore.
 
 ### Alunos
 Lista, cadastro, edição e exclusão de alunos persistidos no Firestore.
@@ -98,116 +114,104 @@ Cadastro com enunciado, alternativas e gabarito; edição e exclusão refletidas
 ![Exclusão no banco](docs/telas/questao-exclusao-banco.png)
 
 ### Provas
-Listagem e situação das provas cadastradas no Firestore. Cadastro, alteração de situação e exclusão foram implementados, mas os prints disponíveis comprovam a listagem e os documentos de exemplo.
+Listagem e situação das provas cadastradas no Firestore.
 
 ![Provas no app](docs/telas/provas.png)
 ![Provas no Firestore](docs/telas/provas-banco.png)
 
 ### Correção e Resultados
-Correção registra dados no Firestore; a leitura do QR identifica a folha, mas as respostas são simuladas. Resultados lê correções e nomes dos alunos; atualmente agrega os registros sem seleção por prova. Exportar copia CSV separado por ponto e vírgula.
+Correção registra dados no Firestore; a leitura do QR identifica a folha, mas as respostas são simuladas. Resultados lê correções e nomes dos alunos. Exportar copia CSV separado por ponto e vírgula.
 
 ![Registro de correção no banco](docs/telas/correcoes-banco.png)
 ![Planilha montada para conferência dos valores exportados](docs/telas/notas-exportadas.png)
 
-A planilha é evidência da conferência dos valores exportados, não de geração nativa de .xlsx pelo app. Não foi fornecido print da tela de Resultados.
+### Novas evidências da N3
 
-### Painel e Folhas
-Telas herdadas da N1. O Painel apresenta resumos locais; as Folhas exibem QR real e grade A–D, mas ainda consultam alunos locais. Os prints históricos estão no diário da N1, preservado na versão consolidada.
+As telas novas (cadastro, login, turmas, painel, prova com embaralhamento, PDF com QR, correção pelo QR e relatório) ainda não têm prints próprios. A demonstração ao vivo e a gravação do fluxo substituem esses prints; a tabela da seção 8 marca o que falta registrar.
 
-## 4. Dados e tecnologias
+## 6. Dados, tecnologias e segurança
 
 - **Flutter/Dart:** interface e lógica.
-- **Firebase Core:** inicialização da conexão.
-- **Cloud Firestore:** documentos em `alunos`, `questoes`, `provas` e `correcoes`.
-- **google_fonts:** fontes; **qr_flutter:** QR; **mobile_scanner:** scanner móvel.
-- **Git/GitHub:** versionamento. A autora informou commits da N2; prints de PR/revisão/merge desta fase não foram disponibilizados.
+- **Firebase Authentication:** cadastro e login do professor por e-mail e senha.
+- **Cloud Firestore:** coleções `professores`, `turmas`, `alunos`, `questoes`, `provas` e `correcoes`.
+- **google_fonts:** fontes; **qr_flutter:** QR; **mobile_scanner:** scanner; **pdf** e **printing:** PDF e impressão.
 
-Alunos guardam nome, matrícula e turmaId; questões guardam enunciado, disciplina, assunto, dificuldade, alternativas e correta; provas guardam título, turma, data, quantidade, modo e situação; correções guardam alunoId, provaId, variação, acertos, total, nota e respostas. A modelagem completa com dicionário de dados pertence à N3.
+### Modelagem
 
-O serviço `seedSeVazio()` insere exemplos quando uma coleção está vazia. Estes exemplos são demonstrativos e não devem ser confundidos com novas correções de folhas reais.
+| Coleção | Campos principais |
+|---|---|
+| `professores` | `id` (uid), nome, e-mail |
+| `turmas` | `professorId`, nome, curso, disciplina, periodo |
+| `alunos` | `professorId`, nome, matricula, turmaId |
+| `questoes` | `professorId`, enunciado, alternativas, correta, disciplina, assunto, dificuldade, usos |
+| `provas` | `professorId`, titulo, turmaId, data, questoes, total, modo, status, variacoes (ordem e gabarito), corrigidas |
+| `correcoes` | `professorId`, alunoId, alunoNome, provaId, variacao, acertos, total, nota, lidaEm, respostas |
 
-## 5. Estrutura e execução
+Toda gravação inclui `professorId`, e a leitura é filtrada pelo professor logado. As regras em `firestore.rules` reforçam isso no servidor.
+
+### Como a nota é calculada
+
+A nota não é sorteada nem digitada: o professor marca a alternativa que o aluno respondeu, o sistema compara com o gabarito salvo da variação e calcula `acertos ÷ total de questões × 10`. A folha corrigida não pode ser registrada duas vezes para a mesma prova e aluno.
+
+## 7. Estrutura do projeto
 
 ```text
-android/                      plataforma Android do projeto local
-web/                          plataforma Web do projeto local
+android/                      plataforma Android
+web/                          plataforma Web
 lib/
-  main.dart                   inicialização e navegação
+  main.dart                   inicialização, tela de entrada e navegação
   firebase_options.dart       gerado pelo FlutterFire no projeto local
-  mock_data.dart              modelos e exemplos ainda usados
+  models.dart                 modelos das coleções
   theme.dart                  tema
   widgets.dart                elementos reutilizados
-  screens/                    telas
-  services/firestore_service.dart  acesso ao banco
+  screens/                    telas (login, cadastro, painel, turmas,
+                              alunos, questões, provas, folha de prova,
+                              folhas, correção, resultados)
+  services/
+    auth_service.dart         cadastro e login do professor
+    firestore_service.dart    leitura e gravação no banco
+    pdf_service.dart          PDF da prova e da folha com QR
+firestore.rules               regras de segurança do Firestore
 docs/
-  telas/                      prints da N2
+  telas/                      prints das entregas anteriores
   modelo-dados/               reservado para a N3
   backlog/                    planejamento enviado anteriormente
 pubspec.yaml                  dependências
-README.md                     documentação v2
+README.md                     documentação v3
 ```
 
-É necessário entregar as pastas de plataforma e a configuração Firebase que existem no projeto local; apenas `lib/` não é o projeto completo.
+É necessário entregar as pastas de plataforma e a configuração Firebase que existem no projeto local; apenas `lib/` não é o projeto completo. Se faltarem pastas de plataforma no ambiente de desenvolvimento, gerar com `flutter create --platforms=android,web .` e revisar os arquivos alterados antes de entregar.
 
-### Rodar o projeto
+## 8. Backlog da N3
 
-Pré-requisitos: Flutter com Dart compatível com `>=3.4.0 <4.0.0`, Android SDK para APK, Chrome para Web e acesso ao Firebase do projeto.
+| Tarefa | Estado |
+|---|---|
+| Cadastro e login de professor | Implementado; depende de ativar E-mail/Senha no Console. |
+| Turmas com curso, disciplina e período | Implementado. |
+| Alunos ligados à turma | Implementado. |
+| Banco de questões com assunto e dificuldade | Implementado. |
+| Prova com embaralhamento de questões e alternativas | Implementado; gabarito salvo por variação. |
+| Remover dados de exemplo | Concluído: `lib/mock_data.dart` foi excluído e a inserção automática de exemplos não existe mais. |
+| PDF com QR em página separada | Implementado em `pdf_service.dart`. |
+| Correção pelo QR com nota do gabarito | Implementado. |
+| Relatório por prova e exportação | Implementado. |
+| Regras de segurança do Firestore | Arquivo `firestore.rules` pronto; falta publicar no Console. |
+| Compilar e testar o APK desta versão | Pendente — o Flutter não está disponível no ambiente em que o código foi escrito. |
+| Prints e vídeo da N3 | Pendentes. |
+| Diário de bordo da N3 e diário consolidado | Pendentes. |
+| Montar e enviar o pacote da N3 | Pendente. |
 
-```powershell
-git clone https://github.com/Aninha0303/Automatizacao-Prova.git
-cd Automatizacao-Prova
-flutter pub get
-flutter run -d chrome
-```
+## 9. Limites e verificações pendentes
 
-Se a configuração Firebase não estiver no checkout, uma conta autorizada no projeto deve executar:
+- O código desta versão foi escrito e conferido arquivo por arquivo, mas **não foi compilado nem executado** no ambiente onde foi produzido: não há Flutter instalado aqui. A validação real acontece no primeiro `flutter run` / `flutter build apk` no computador da autora.
+- **Cadastro e login dependem** de ativar o provedor E-mail/Senha no Firebase Authentication.
+- **As regras do banco ainda não foram publicadas** no Console; enquanto isso, vale a regra de teste anterior.
+- **Os registros da N2 não têm `professorId`**, então não aparecem para um professor recém-cadastrado. A demonstração da N3 deve ser feita com cadastro novo, do zero.
+- A exportação continua sendo CSV copiado para a área de transferência (cola no Excel), não um arquivo `.xlsx` gerado pelo app.
+- A leitura óptica das marcações (detectar a bolinha preenchida na folha) não foi implementada: a correção é feita pelo professor marcando na tela a resposta que o aluno deu.
 
-```powershell
-npm install -g firebase-tools
-firebase login
-dart pub global activate flutterfire_cli
-dart pub global run flutterfire_cli:flutterfire configure --project=corrigemais-e2d79 --platforms=android,web
-flutter pub get
-```
-
-Não substituir o `firebase_options.dart` já configurado por outro arquivo. Se faltarem pastas de plataforma no ambiente de desenvolvimento, gerar com `flutter create --platforms=android,web .` e revisar os arquivos alterados antes de entregar. O ZIP final deve conter as plataformas prontas.
-
-```powershell
-flutter run                 # selecionar dispositivo Android conectado
-flutter build apk --release
-```
-
-APK: `build/app/outputs/flutter-apk/app-release.apk`. Incluir cópia na raiz do ZIP como `corrige_mais.apk`; excluir `build/`, `.dart_tool/` e `.git/` do pacote.
-
-Estas instruções refletem a configuração relatada pela autora; a compilação do projeto local e a instalação do APK final não foram verificadas neste ambiente.
-
-## 6. Backlog real da N2
-
-### Ana Vicini
-
-O planejamento original é preservado em [Backlog N2](docs/backlog/Corrige_Mais_Backlog_N2.xlsx). Os prazos abaixo são os estimados no planejamento, não datas inventadas de conclusão. A atividade de avaliação atualizada definiu entrega em 30/10/2026 às 23h59, diferente do prazo 22/10 considerado na planilha inicial.
-
-| Tarefa | Prazo planejado | Estado real |
-|---|---|---|
-| Configurar Firebase | 05/10/2026 | Concluído; Android/Web configurados em 29/10. |
-| Modelar coleções | 06/10/2026 | Parcial: alunos, questoes, provas e correcoes; turmas e variações não são coleções independentes. |
-| Camada de serviço | 08/10/2026 | Implementada; CRUD de Alunos e Questões validado. |
-| Alunos: CRUD real | 10/10/2026 | CRUD de alunos validado em 29/10; CRUD de turmas não implementado. |
-| Questões: CRUD real | 12/10/2026 | Validado em 29/10. |
-| Provas e variações | 14/10/2026 | Parcial: lista persistida comprovada; geração/gravação de variações não comprovada. |
-| Importar alunos de planilha | 15/10/2026 | Não implementado na versão analisada. |
-| Gravar correções | 17/10/2026 | Persistência implementada; respostas simuladas. Prints mostram registros de exemplo no banco. |
-| Resultados do banco | 18/10/2026 | Implementado; exportação informada pela autora, sem print da tela de Resultados. |
-| Exportar Excel | 19/10/2026 | Adaptado: CSV na área de transferência; planilha .xlsx montada externamente para teste. |
-| Ajustes do cliente da N1 | 19/10/2026 | Feedback não disponível para comprovar atendimento. |
-| README v2 | 20/10/2026 | Preparado em 30/10; inserir no projeto e commitar. |
-| Diário N2 | 21/10/2026 | Preparado em 30/10; faltam evidências do fluxo de PR da N2. |
-| APK e ZIP final | 21/10/2026 | APK informado como pronto em 30/10; instalação não verificada. ZIP será montado localmente. |
-
-A adaptação de Excel para CSV permitiu conferir os valores sem uma biblioteca de .xlsx no app. A importação e a persistência de variações ficaram pendentes; não foram declaradas concluídas. O trabalho continuou individual, sem redistribuição de responsáveis. Não há evidência disponível para afirmar que todo o feedback do cliente foi atendido.
-
-## 7. Vídeo e documentação
+## 10. Vídeo e documentação
 
 Vídeo **da N1**, mantido como histórico: https://youtu.be/D6YPwx4ws3E
 
-N1: telas mock, primeiro APK e diário individual. N2: integração Firestore, testes CRUD, documentação v2 e novo APK informado. A documentação de entrega reúne ambas as fases e indica as evidências ainda ausentes, sem confundir prints antigos com trabalho novo.
+N1: telas mock, primeiro APK e diário individual. N2: integração Firestore, testes CRUD, documentação v2 e APK. N3: cadastro/login de professor, turmas, embaralhamento com gabarito salvo, PDF com QR, correção pelo QR e relatório por prova.
