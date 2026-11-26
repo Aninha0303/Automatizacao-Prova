@@ -228,6 +228,7 @@ class FirestoreService {
         total: ((m['total'] ?? 0) as num).toInt(),
         nota: ((m['nota'] ?? 0) as num).toDouble(),
         lidaEm: (m['lidaEm'] ?? '') as String,
+        alunoNome: (m['alunoNome'] ?? '') as String,
         respostas: ((m['respostas'] ?? []) as List)
             .map((r) => Resposta(
                   ((r['questao'] ?? 0) as num).toInt(),

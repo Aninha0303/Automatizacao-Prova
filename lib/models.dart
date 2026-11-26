@@ -172,6 +172,7 @@ class Correcao {
   final double nota;
   final String lidaEm;
   final List<Resposta> respostas;
+  final String alunoNome;
   const Correcao({
     required this.id,
     required this.alunoId,
@@ -182,5 +183,6 @@ class Correcao {
     required this.nota,
     required this.lidaEm,
     required this.respostas,
+    this.alunoNome = '',
   });
 }

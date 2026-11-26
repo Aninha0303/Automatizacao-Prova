@@ -161,7 +161,12 @@ class PdfService {
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
                 ),
-                child: QrImage(data: dadosQr, size: 96),
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: dadosQr,
+                  width: 96,
+                  height: 96,
+                ),
               ),
             ],
           ),
