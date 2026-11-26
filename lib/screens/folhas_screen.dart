@@ -1,40 +1,99 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../mock_data.dart';
+import '../models.dart';
+import '../services/firestore_service.dart';
+import '../services/pdf_service.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
 /// Folhas de resposta com QR code real (um QR por aluno/variação).
-/// O conteúdo do QR segue o formato: provaId|variacao|matricula
+/// O conteúdo do QR é sempre: provaId|variacao|matricula
 class FolhasScreen extends StatelessWidget {
   final Prova prova;
   const FolhasScreen({super.key, required this.prova});
 
+  Future<void> _pdf(BuildContext context) async {
+    final s = FirestoreService.instance;
+    final alunos = await s.alunosStream().first;
+    final turmas = await s.turmasStream().first;
+    final questoes = await s.questoesStream().first;
+    if (!context.mounted) return;
+
+    final daTurma = alunos.where((a) => a.turmaId == prova.turmaId).toList();
+    if (daTurma.isEmpty) {
+      toast(context, 'Nenhum aluno nessa turma.');
+      return;
+    }
+    if (prova.variacoesDados.isEmpty) {
+      toast(context, 'A prova não tem variações salvas.');
+      return;
+    }
+    final t = turmas.where((x) => x.id == prova.turmaId);
+    final turmaNome = t.isEmpty ? 'Turma' : t.first.nome;
+    final banco = {for (final q in questoes) q.id: q};
+
+    try {
+      await PdfService.gerarProva(
+        prova: prova,
+        turmaNome: turmaNome,
+        alunos: daTurma,
+        banco: banco,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        toast(context, 'Não foi possível gerar o PDF: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final turma = turmas.firstWhere((t) => t.id == prova.turmaId);
-    final lista = alunos.where((a) => a.turmaId == prova.turmaId).toList();
-
     return Scaffold(
       appBar: AppBar(title: const Text('Folhas de resposta')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          PageHeader(
-            title: prova.titulo,
-            description:
-                '${turma.nome} · ${prova.questoes} questões. Cada folha tem um QR code próprio.',
-          ),
-          for (var i = 0; i < lista.length; i++)
-            _Folha(
-              prova: prova,
-              aluno: lista[i],
-              variacao: 'V-${(i + 1).toString().padLeft(2, '0')}',
-            ),
-          if (lista.isEmpty)
-            const SectionCard(child: Text('Nenhum aluno nesta turma.')),
-        ],
+      body: StreamBuilder<List<Aluno>>(
+        stream: FirestoreService.instance.alunosStream(),
+        builder: (context, snap) {
+          final todos = snap.data ?? [];
+          final lista =
+              todos.where((a) => a.turmaId == prova.turmaId).toList();
+          final temVariacoes = prova.variacoesDados.isNotEmpty;
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              PageHeader(
+                title: prova.titulo,
+                description: temVariacoes
+                    ? '${lista.length} folhas · cada uma com QR próprio '
+                        '(prova, variação e matrícula).'
+                    : 'A prova não tem variações salvas: gere a prova de novo.',
+                action: OutlinedButton.icon(
+                  onPressed: () => _pdf(context),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('PDF'),
+                ),
+              ),
+              if (lista.isEmpty)
+                const SectionCard(
+                    child: Text('Nenhum aluno nesta turma.')),
+              if (!temVariacoes && lista.isNotEmpty)
+                const SectionCard(
+                    child: Text(
+                        'Abra a prova em "Provas → Abrir" e gere as variações.')),
+              for (var i = 0; i < lista.length && temVariacoes; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _Folha(
+                    prova: prova,
+                    aluno: lista[i],
+                    variacao:
+                        prova.variacoesDados[i % prova.variacoesDados.length],
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -43,12 +102,16 @@ class FolhasScreen extends StatelessWidget {
 class _Folha extends StatelessWidget {
   final Prova prova;
   final Aluno aluno;
-  final String variacao;
-  const _Folha({required this.prova, required this.aluno, required this.variacao});
+  final Variacao variacao;
+  const _Folha({
+    required this.prova,
+    required this.aluno,
+    required this.variacao,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final dados = '${prova.id}|$variacao|${aluno.matricula}';
+    final dados = '${prova.id}|${variacao.id}|${aluno.matricula}';
     return SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +126,10 @@ class _Folha extends StatelessWidget {
                     Text(aluno.nome,
                         style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
-                    Text('Matrícula ${aluno.matricula} · $variacao',
+                    Text('Matrícula ${aluno.matricula} · ${variacao.id}',
+                        style: Theme.of(context).textTheme.bodySmall),
+                    const SizedBox(height: 4),
+                    Text('QR: $dados',
                         style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
@@ -86,7 +152,7 @@ class _Folha extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _GradeRespostas(questoes: prova.questoes),
+          _GradeRespostas(questoes: variacao.questoes.length),
         ],
       ),
     );

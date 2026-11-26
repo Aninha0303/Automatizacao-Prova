@@ -1,18 +1,15 @@
-import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../mock_data.dart';
+import '../models.dart';
 import '../services/firestore_service.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-/// Fluxo de correção pela câmera.
-/// No Android/iOS usa a câmera real (mobile_scanner) para ler o QR da folha.
-/// Na web/desktop mostra um placeholder com leitura simulada.
-/// Cada folha lida é gravada na coleção "correcoes" do Firestore.
+/// Correção real: o QR identifica a folha (prova, variação e matrícula),
+/// a tela mostra a variação daquele aluno e a nota é calculada comparando
+/// as marcas com o gabarito salvo da variação.
 class CorrecaoScreen extends StatefulWidget {
   const CorrecaoScreen({super.key});
   @override
@@ -20,10 +17,10 @@ class CorrecaoScreen extends StatefulWidget {
 }
 
 class _CorrecaoScreenState extends State<CorrecaoScreen> {
-  bool _lendo = false;
-  String? _ultimoCodigo;
+  final _codigo = TextEditingController();
   List<Aluno> _alunos = [];
-  final _rnd = Random();
+  String? _ultimoCodigo;
+  bool _ocupado = false;
 
   @override
   void initState() {
@@ -33,68 +30,84 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _codigo.dispose();
+    super.dispose();
+  }
+
   bool get _cameraDisponivel =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
-  /// Monta uma correção de exemplo para o aluno (leitura dos quadradinhos
-  /// ainda é simulada; o QR e a gravação no banco são reais).
-  Correcao _gerarCorrecao(Aluno aluno, String provaId, String variacao) {
-    const total = 20;
-    final acertos = 8 + _rnd.nextInt(13); // 8..20
-    final respostas = List.generate(5, (i) {
-      final correta = 'ABCD'[_rnd.nextInt(4)];
-      final acertou = _rnd.nextBool();
-      return Resposta(
-          i + 1, acertou ? correta : 'ABCD'[_rnd.nextInt(4)], correta);
-    });
-    return Correcao(
-      id: '',
-      alunoId: aluno.id,
-      provaId: provaId,
-      variacao: variacao,
-      acertos: acertos,
-      total: total,
-      nota: acertos / total * 10,
-      lidaEm: 'agora',
-      respostas: respostas,
-    );
-  }
-
   Future<void> _registrarLeitura(String codigo) async {
+    if (_ocupado) return;
     if (codigo == _ultimoCodigo) return;
     _ultimoCodigo = codigo;
-    // QR no formato provaId|variacao|matricula
-    final partes = codigo.split('|');
-    final matricula = partes.length > 2 ? partes[2] : '';
-    final encontrados =
-        _alunos.where((a) => a.matricula == matricula).toList();
-    if (encontrados.isEmpty) {
-      toast(context, 'Aluno não encontrado para este QR.');
-      return;
-    }
-    final aluno = encontrados.first;
-    final c = _gerarCorrecao(
-        aluno, partes[0], partes.length > 1 ? partes[1] : 'V-01');
-    await FirestoreService.instance.addCorrecao(c, aluno.nome);
-    if (mounted) toast(context, 'Folha de ${aluno.nome} corrigida e salva.');
-  }
 
-  Future<void> _simularLeitura() async {
-    if (_alunos.isEmpty) {
-      toast(context, 'Nenhum aluno cadastrado para simular.');
+    final partes = codigo.split('|');
+    if (partes.length < 3) {
+      if (mounted) {
+        toast(context, 'QR fora do padrão prova|variação|matrícula.');
+      }
       return;
     }
-    setState(() => _lendo = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    final aluno = _alunos[_rnd.nextInt(_alunos.length)];
-    final c = _gerarCorrecao(
-        aluno, 'p1', 'V-${(1 + _rnd.nextInt(30)).toString().padLeft(2, '0')}');
-    await FirestoreService.instance.addCorrecao(c, aluno.nome);
-    setState(() => _lendo = false);
-    if (mounted) toast(context, 'Folha de ${aluno.nome} corrigida e salva.');
+
+    setState(() => _ocupado = true);
+    try {
+      final s = FirestoreService.instance;
+      final prova = await s.provaPorId(partes[0]);
+      if (prova == null) {
+        if (mounted) toast(context, 'Prova não encontrada para este QR.');
+        return;
+      }
+
+      final variacoes = prova.variacoesDados
+          .where((v) => v.id == partes[1])
+          .toList();
+      if (variacoes.isEmpty) {
+        if (mounted) {
+          toast(context, 'Variação "${partes[1]}" não existe nesta prova.');
+        }
+        return;
+      }
+
+      final alunos = _alunos.isEmpty
+          ? await s.alunosStream().first
+          : _alunos;
+      final encontrados =
+          alunos.where((a) => a.matricula == partes[2]).toList();
+      if (encontrados.isEmpty) {
+        if (mounted) {
+          toast(context, 'Nenhum aluno com a matrícula ${partes[2]}.');
+        }
+        return;
+      }
+
+      final aluno = encontrados.first;
+      if (await s.correcaoExistente(prova.id, aluno.id)) {
+        if (mounted) {
+          toast(context, 'A folha de ${aluno.nome} já foi corrigida.');
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FolhaCorrecaoScreen(
+            prova: prova,
+            variacao: variacoes.first,
+            aluno: aluno,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) toast(context, 'Erro ao abrir a folha: $e');
+    } finally {
+      if (mounted) setState(() => _ocupado = false);
+    }
   }
 
   Future<void> _excluir(Correcao c) async {
@@ -110,7 +123,8 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
         const PageHeader(
           title: 'Correção',
           description:
-              'Leia o QR code da folha de resposta: o sistema identifica a variação, lê os quadradinhos marcados, calcula a nota e grava no Firebase.',
+              'Leia o QR da folha: o sistema abre a variação do aluno, você '
+              'marca o que ele respondeu e a nota sai do gabarito salvo.',
         ),
         Card(
           child: Column(children: [
@@ -130,37 +144,60 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
                             if (code != null) _registrarLeitura(code);
                           },
                         )
-                      : Center(
-                          child: _lendo
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white)
-                              : const Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.qr_code_scanner,
-                                        size: 48, color: Colors.white70),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Câmera disponível no celular.\nAqui a leitura roda em modo simulado.',
-                                      textAlign: TextAlign.center,
-                                      style:
-                                          TextStyle(color: Colors.white70),
-                                    ),
-                                  ],
-                                ),
+                      : const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.qr_code_scanner,
+                                  size: 48, color: Colors.white70),
+                              SizedBox(height: 8),
+                              Text(
+                                'Câmera disponível no celular.\n'
+                                'Aqui, cole o conteúdo do QR no campo abaixo.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ],
+                          ),
                         ),
                 ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _lendo ? null : _simularLeitura,
-                  icon: const Icon(Icons.center_focus_strong, size: 18),
-                  label: Text(_lendo ? 'Lendo…' : 'Ler folha'),
-                ),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _codigo,
+                    enabled: !_ocupado,
+                    decoration: const InputDecoration(
+                      labelText: 'Conteúdo do QR',
+                      hintText: 'provaId|V-01|2024001',
+                    ),
+                    onSubmitted: (v) {
+                      if (v.trim().isNotEmpty) _registrarLeitura(v.trim());
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _ocupado
+                          ? null
+                          : () {
+                              final v = _codigo.text.trim();
+                              if (v.isEmpty) {
+                                toast(context,
+                                    'Cole o conteúdo do QR ou leia com a câmera.');
+                              } else {
+                                _registrarLeitura(v);
+                              }
+                            },
+                      icon: const Icon(Icons.center_focus_strong, size: 18),
+                      label: Text(_ocupado ? 'Lendo…' : 'Abrir esta folha'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ]),
@@ -170,75 +207,231 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
           stream: FirestoreService.instance.correcoesStream(),
           builder: (context, snap) {
             final lista = snap.data ?? [];
-            return StreamBuilder<Map<String, String>>(
-              stream: FirestoreService.instance.nomesAlunosStream(),
-              builder: (context, snapNomes) {
-                final nomes = snapNomes.data ?? {};
-                return SectionCard(
-                  title: 'Folhas corrigidas (Firebase)',
-                  child: lista.isEmpty
-                      ? Text(
-                          snap.connectionState == ConnectionState.waiting
-                              ? 'Carregando…'
-                              : 'Nenhuma folha lida ainda.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        )
-                      : Column(
-                          children: lista
-                              .map((c) => ExpansionTile(
-                                    tilePadding: EdgeInsets.zero,
-                                    title: Text(
-                                        nomes[c.alunoId] ?? c.alunoId),
-                                    subtitle: Text(
-                                        '${c.variacao} · ${c.acertos}/${c.total} acertos'),
-                                    trailing: StatusBadge(
-                                      c.nota.toStringAsFixed(1),
-                                      color: c.nota >= 6
-                                          ? AppColors.success
-                                          : AppColors.danger,
-                                    ),
-                                    children: [
-                                      ...c.respostas.map((r) => ListTile(
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(
-                                              r.acertou
-                                                  ? Icons.check_circle
-                                                  : Icons.cancel,
-                                              color: r.acertou
-                                                  ? AppColors.success
-                                                  : AppColors.danger,
-                                              size: 18,
-                                            ),
-                                            title:
-                                                Text('Questão ${r.questao}'),
-                                            trailing: Text(
-                                                'marcou ${r.marcada} · correta ${r.correta}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall),
-                                          )),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton.icon(
-                                          onPressed: () => _excluir(c),
-                                          icon: const Icon(
-                                              Icons.delete_outline,
-                                              size: 16),
-                                          label:
-                                              const Text('Excluir correção'),
+            return SectionCard(
+              title: 'Folhas corrigidas (Firebase)',
+              child: lista.isEmpty
+                  ? Text(
+                      snap.connectionState == ConnectionState.waiting
+                          ? 'Carregando…'
+                          : 'Nenhuma folha lida ainda.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )
+                  : Column(
+                      children: lista
+                          .map((c) => ExpansionTile(
+                                tilePadding: EdgeInsets.zero,
+                                title: Text(
+                                    c.alunoNome.isEmpty
+                                        ? c.alunoId
+                                        : c.alunoNome),
+                                subtitle: Text(
+                                    '${c.variacao} · ${c.acertos}/${c.total} acertos'),
+                                trailing: StatusBadge(
+                                  c.nota.toStringAsFixed(1),
+                                  color: c.nota >= 6
+                                      ? AppColors.success
+                                      : AppColors.danger,
+                                ),
+                                children: [
+                                  ...c.respostas.map((r) => ListTile(
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: Icon(
+                                          r.acertou
+                                              ? Icons.check_circle
+                                              : Icons.cancel,
+                                          color: r.acertou
+                                              ? AppColors.success
+                                              : AppColors.danger,
+                                          size: 18,
                                         ),
-                                      ),
-                                    ],
-                                  ))
-                              .toList(),
-                        ),
-                );
-              },
+                                        title:
+                                            Text('Questão ${r.questao}'),
+                                        trailing: Text(
+                                            'marcou ${r.marcada} · correta '
+                                            '${r.correta}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall),
+                                      )),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: () => _excluir(c),
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 16),
+                                      label:
+                                          const Text('Excluir correção'),
+                                    ),
+                                  ),
+                                ],
+                              ))
+                          .toList(),
+                    ),
             );
           },
         ),
       ],
+    );
+  }
+}
+
+/// Tela aberta pelo QR: mostra a variação do aluno, o professor marca o que
+/// foi respondido e a nota é calculada contra o gabarito salvo.
+class FolhaCorrecaoScreen extends StatefulWidget {
+  final Prova prova;
+  final Variacao variacao;
+  final Aluno aluno;
+  const FolhaCorrecaoScreen({
+    super.key,
+    required this.prova,
+    required this.variacao,
+    required this.aluno,
+  });
+  @override
+  State<FolhaCorrecaoScreen> createState() => _FolhaCorrecaoScreenState();
+}
+
+class _FolhaCorrecaoScreenState extends State<FolhaCorrecaoScreen> {
+  final Map<int, String> _marcadas = {};
+  Map<String, Questao> _banco = {};
+  bool _carregando = true;
+  bool _salvando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FirestoreService.instance.questoesStream().first.then((qs) {
+      if (!mounted) return;
+      setState(() {
+        _banco = {for (final q in qs) q.id: q};
+        _carregando = false;
+      });
+    });
+  }
+
+  Future<void> _salvar() async {
+    final total = widget.variacao.questoes.length;
+    final faltando = <int>[];
+    for (var i = 0; i < total; i++) {
+      if ((_marcadas[i] ?? '').isEmpty) faltando.add(i + 1);
+    }
+    if (faltando.isNotEmpty) {
+      toast(context, 'Marque as questões: ${faltando.join(', ')}.');
+      return;
+    }
+
+    setState(() => _salvando = true);
+    final respostas = <Resposta>[];
+    var acertos = 0;
+    for (var i = 0; i < total; i++) {
+      final qp = widget.variacao.questoes[i];
+      final marcada = _marcadas[i] ?? '';
+      if (marcada == qp.correta) acertos++;
+      respostas.add(Resposta(i + 1, marcada, qp.correta));
+    }
+    final nota = total == 0 ? 0.0 : acertos / total * 10;
+
+    final correcao = Correcao(
+      id: '',
+      alunoId: widget.aluno.id,
+      provaId: widget.prova.id,
+      variacao: widget.variacao.id,
+      acertos: acertos,
+      total: total,
+      nota: nota,
+      lidaEm: DateTime.now().toIso8601String(),
+      respostas: respostas,
+    );
+
+    try {
+      await FirestoreService.instance
+          .addCorrecao(correcao, widget.aluno.nome);
+      await FirestoreService.instance
+          .registrarFolhaCorrigida(widget.prova.id);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text('Nota de ${widget.aluno.nome}'),
+          content: Text(
+              '${acertos} acertos em ${total} questões.\n'
+              'Nota: ${nota.toStringAsFixed(1)}\n\n'
+              'A folha foi salva no Firebase e a prova foi atualizada.'),
+          actions: [
+            FilledButton(
+                onPressed: () => Navigator.pop(c),
+                child: const Text('Fechar')),
+          ],
+        ),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) toast(context, 'Erro ao salvar a correção: $e');
+    } finally {
+      if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.variacao;
+    return Scaffold(
+      appBar: AppBar(title: Text('Folha de ${widget.aluno.nome}')),
+      body: _carregando
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                PageHeader(
+                  title: widget.prova.titulo,
+                  description:
+                      'Matrícula ${widget.aluno.matricula} · ${v.id} · '
+                      '${v.questoes.length} questões. Marque a alternativa '
+                      'que o aluno respondeu.',
+                ),
+                for (var i = 0; i < v.questoes.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${i + 1}. '
+                              '${_banco[v.questoes[i].questaoId]?.enunciado ?? 'Questão'}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: v.questoes[i].alternativas
+                                .map((a) => ChoiceChip(
+                                      label: Text('${a.letra}) ${a.texto}'),
+                                      selected: (_marcadas[i] ?? '') == a.letra,
+                                      onSelected: (_) =>
+                                          setState(() => _marcadas[i] =
+                                              a.letra),
+                                    ))
+                                .toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _salvando ? null : _salvar,
+                    icon: const Icon(Icons.check, size: 18),
+                    label: Text(_salvando
+                        ? 'Salvando…'
+                        : 'Corrigir e salvar nota'),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
