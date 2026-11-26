@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../mock_data.dart';
+import '../models.dart';
 import '../services/firestore_service.dart';
 import '../theme.dart';
 import '../widgets.dart';
