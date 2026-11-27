@@ -6,9 +6,10 @@ import '../services/firestore_service.dart';
 import '../services/pdf_service.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import '../qr_link.dart';
 
 /// Folhas de resposta com QR code real (um QR por aluno/variação).
-/// O conteúdo do QR é sempre: provaId|variacao|matricula
+/// O QR é um link que abre o app direto na folha (provaId|variacao|matricula).
 class FolhasScreen extends StatelessWidget {
   final Prova prova;
   const FolhasScreen({super.key, required this.prova});
@@ -111,7 +112,8 @@ class _Folha extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dados = '${prova.id}|${variacao.id}|${aluno.matricula}';
+    final codigo = codigoDaFolha(prova.id, variacao.id, aluno.matricula);
+    final dados = linkDaFolha(prova.id, variacao.id, aluno.matricula);
     return SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +131,7 @@ class _Folha extends StatelessWidget {
                     Text('Matrícula ${aluno.matricula} · ${variacao.id}',
                         style: Theme.of(context).textTheme.bodySmall),
                     const SizedBox(height: 4),
-                    Text('QR: $dados',
+                    Text('Código da folha: $codigo',
                         style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),

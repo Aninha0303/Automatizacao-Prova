@@ -3,6 +3,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models.dart';
+import '../qr_link.dart';
 
 /// Gera o PDF da prova: questões (páginas 1..n), gabarito (página separada)
 /// e a folha de resposta com QR code em página separada.
@@ -135,7 +136,8 @@ class PdfService {
 
   static pw.Page _paginaFolha(
       Prova prova, String turmaNome, Aluno aluno, Variacao variacao) {
-    final dadosQr = '${prova.id}|${variacao.id}|${aluno.matricula}';
+    final codigo = codigoDaFolha(prova.id, variacao.id, aluno.matricula);
+    final dadosQr = linkDaFolha(prova.id, variacao.id, aluno.matricula);
     final total = variacao.questoes.length;
     return pw.Page(
       pageFormat: PdfPageFormat.a4,
@@ -152,7 +154,7 @@ class PdfService {
               pw.Expanded(
                 child: pw.Text(
                     'Folha de resposta — preencha com lápis escuro, '
-                    'sem rasurar. A leitura é feita pelo QR code abaixo.',
+                    'sem rasurar. Para corrigir, aponte a câmera do celular para o QR code.',
                     style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
               ),
               pw.SizedBox(width: 12),
@@ -171,7 +173,7 @@ class PdfService {
             ],
           ),
           pw.SizedBox(height: 10),
-          pw.Text('QR: $dadosQr',
+          pw.Text('Código da folha: $codigo',
               style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
           pw.SizedBox(height: 14),
           for (var i = 0; i < total; i++)

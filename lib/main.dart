@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'qr_link.dart';
 import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
 
@@ -58,7 +59,9 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _index = 0;
+  // Se o app foi aberto pelo link do QR, já começa na Correção daquela folha.
+  final String? _folhaDoLink = folhaDoEndereco();
+  late int _index = _folhaDoLink != null ? 3 : 0;
   String _nome = 'Professor';
 
   static const _titles = [
@@ -71,14 +74,14 @@ class _AppShellState extends State<AppShell> {
     'Turmas',
   ];
 
-  final _screens = const [
-    PainelScreen(),
-    QuestoesScreen(),
-    ProvasScreen(),
-    CorrecaoScreen(),
-    ResultadosScreen(),
-    AlunosScreen(),
-    TurmasScreen(),
+  late final List<Widget> _screens = [
+    const PainelScreen(),
+    const QuestoesScreen(),
+    const ProvasScreen(),
+    CorrecaoScreen(codigoInicial: _folhaDoLink),
+    const ResultadosScreen(),
+    const AlunosScreen(),
+    const TurmasScreen(),
   ];
 
   @override

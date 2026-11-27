@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models.dart';
+import '../qr_link.dart';
 import '../services/firestore_service.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -11,7 +12,9 @@ import '../widgets.dart';
 /// a tela mostra a variação daquele aluno e a nota é calculada comparando
 /// as marcas com o gabarito salvo da variação.
 class CorrecaoScreen extends StatefulWidget {
-  const CorrecaoScreen({super.key});
+  /// Código vindo do link do QR (câmera do iPhone abre o app já na folha).
+  final String? codigoInicial;
+  const CorrecaoScreen({super.key, this.codigoInicial});
   @override
   State<CorrecaoScreen> createState() => _CorrecaoScreenState();
 }
@@ -21,6 +24,9 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
   List<Aluno> _alunos = [];
   String? _ultimoCodigo;
   bool _ocupado = false;
+  // No celular instalado a câmera já começa ligada; no navegador ela liga
+  // ao tocar no botão (o Safari só libera a câmera depois de um toque).
+  bool _cameraLigada = !kIsWeb;
 
   @override
   void initState() {
@@ -28,6 +34,12 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
     FirestoreService.instance.alunosStream().first.then((lista) {
       if (mounted) setState(() => _alunos = lista);
     });
+    final inicial = widget.codigoInicial;
+    if (inicial != null && inicial.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _registrarLeitura(inicial);
+      });
+    }
   }
 
   @override
@@ -36,13 +48,9 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
     super.dispose();
   }
 
-  bool get _cameraDisponivel =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS);
-
-  Future<void> _registrarLeitura(String codigo) async {
+  Future<void> _registrarLeitura(String lido) async {
     if (_ocupado) return;
+    final codigo = extrairCodigoDaFolha(lido);
     if (codigo == _ultimoCodigo) return;
     _ultimoCodigo = codigo;
 
@@ -135,7 +143,7 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
                     const BorderRadius.vertical(top: Radius.circular(12)),
                 child: Container(
                   color: AppColors.ink.withOpacity(0.9),
-                  child: _cameraDisponivel
+                  child: _cameraLigada
                       ? MobileScanner(
                           onDetect: (capture) {
                             final code = capture.barcodes.isNotEmpty
@@ -143,19 +151,31 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
                                 : null;
                             if (code != null) _registrarLeitura(code);
                           },
+                          errorBuilder: (context, erro, child) => const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text(
+                                'Não foi possível abrir a câmera.\n'
+                                'Permita o acesso à câmera e use o endereço '
+                                'https do app.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
+                          ),
                         )
-                      : const Center(
+                      : Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.qr_code_scanner,
+                              const Icon(Icons.qr_code_scanner,
                                   size: 48, color: Colors.white70),
-                              SizedBox(height: 8),
-                              Text(
-                                'Câmera disponível no celular.\n'
-                                'Aqui, cole o conteúdo do QR no campo abaixo.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white70),
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: () =>
+                                    setState(() => _cameraLigada = true),
+                                icon: const Icon(Icons.photo_camera, size: 18),
+                                label: const Text('Ler QR com a câmera'),
                               ),
                             ],
                           ),
@@ -171,7 +191,7 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
                     controller: _codigo,
                     enabled: !_ocupado,
                     decoration: const InputDecoration(
-                      labelText: 'Conteúdo do QR',
+                      labelText: 'Ou digite o código da folha (opcional)',
                       hintText: 'provaId|V-01|2024001',
                     ),
                     onSubmitted: (v) {
@@ -188,7 +208,7 @@ class _CorrecaoScreenState extends State<CorrecaoScreen> {
                               final v = _codigo.text.trim();
                               if (v.isEmpty) {
                                 toast(context,
-                                    'Cole o conteúdo do QR ou leia com a câmera.');
+                                    'Leia o QR com a câmera ou digite o código da folha.');
                               } else {
                                 _registrarLeitura(v);
                               }
